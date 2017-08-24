@@ -803,7 +803,7 @@ fileAFormReq fs = AForm $ \(site, langs) menvs ints -> do
                             let t = renderMessage site langs MsgValueRequired
                              in (FormFailure [t], Just $ toHtml t)
     let fv = FieldView
-            { fvLabel = toHtml $ renderMessage site langs $ fsLabel fs
+            { fvLabel = toHtml . renderMessage site langs <$> fsLabel fs
             , fvTooltip = fmap (toHtml . renderMessage site langs) $ fsTooltip fs
             , fvId = id'
             , fvInput = [whamlet|
@@ -834,7 +834,7 @@ fileAFormOpt fs = AForm $ \(master, langs) menvs ints -> do
                         Just (fi:_) -> (FormSuccess $ Just fi, Nothing)
                         _ -> (FormSuccess Nothing, Nothing)
     let fv = FieldView
-            { fvLabel = toHtml $ renderMessage master langs $ fsLabel fs
+            { fvLabel = toHtml . renderMessage master langs <$> fsLabel fs
             , fvTooltip = fmap (toHtml . renderMessage master langs) $ fsTooltip fs
             , fvId = id'
             , fvInput = [whamlet|

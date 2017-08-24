@@ -216,7 +216,7 @@ mhelper Field {..} FieldSettings {..} mdef onMissing onFound isReq = do
                             Nothing -> (onMissing site langs, Left "")
                             Just x -> (onFound x, Right x)
     return (res, FieldView
-        { fvLabel = toHtml $ mr2 fsLabel
+        { fvLabel = toHtml . mr2 <$> fsLabel
         , fvTooltip = fmap toHtml $ fmap mr2 fsTooltip
         , fvId = theId
         , fvInput = fieldView theId name fsAttrs val isReq
@@ -439,7 +439,8 @@ $forall (isFirst, view) <- addIsFirst views
         <td>
             $if isFirst
                 \#{fragment}
-            <label for=#{fvId view}>#{fvLabel view}
+            $maybe label <- fvLabel view
+              <label for=#{fvId view}>#{label}
             $maybe tt <- fvTooltip view
                 <div .tooltip>#{tt}
         <td>^{fvInput view}
@@ -467,7 +468,8 @@ $newline never
 $forall view <- views
     <div :fvRequired view:.required :not $ fvRequired view:.optional>
         $if withLabels
-                <label for=#{fvId view}>#{fvLabel view}
+            $maybe label <- fvLabel view
+                <label for=#{fvId view}>#{label}
         $maybe tt <- fvTooltip view
             <div .tooltip>#{tt}
         ^{fvInput view}
@@ -506,7 +508,8 @@ renderBootstrap2 aform fragment = do
                 \#{fragment}
                 $forall view <- views
                     <div .control-group .clearfix :fvRequired view:.required :not $ fvRequired view:.optional :has $ fvErrors view:.error>
-                        <label .control-label for=#{fvId view}>#{fvLabel view}
+                        $maybe label <- fvLabel view
+                            <label .control-label for=#{fvId view}>#{label}
                         <div .controls .input>
                             ^{fvInput view}
                             $maybe tt <- fvTooltip view
@@ -569,7 +572,7 @@ customErrorMessage msg field = field
 
 -- | Generate a 'FieldSettings' from the given label.
 fieldSettingsLabel :: RenderMessage site msg => msg -> FieldSettings site
-fieldSettingsLabel msg = FieldSettings (SomeMessage msg) Nothing Nothing Nothing []
+fieldSettingsLabel msg = FieldSettings (Just $ SomeMessage msg) Nothing Nothing Nothing []
 
 -- | A helper function for creating custom fields.
 --

@@ -178,7 +178,7 @@ instance MonadTrans AForm where
         return (FormSuccess x, id, ints, mempty)
 
 data FieldSettings master = FieldSettings
-    { fsLabel :: SomeMessage master
+    { fsLabel :: Maybe (SomeMessage master)
     , fsTooltip :: Maybe (SomeMessage master)
     , fsId :: Maybe Text
     , fsName :: Maybe Text
@@ -186,10 +186,10 @@ data FieldSettings master = FieldSettings
     }
 
 instance IsString (FieldSettings a) where
-    fromString s = FieldSettings (fromString s) Nothing Nothing Nothing []
+    fromString s = FieldSettings (Just $ fromString s) Nothing Nothing Nothing []
 
 data FieldView site = FieldView
-    { fvLabel :: Html
+    { fvLabel :: Maybe Html
     , fvTooltip :: Maybe Html
     , fvId :: Text
     , fvInput :: WidgetFor site ()

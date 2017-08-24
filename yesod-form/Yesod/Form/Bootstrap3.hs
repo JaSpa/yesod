@@ -42,7 +42,7 @@ import Yesod.Form.Functions
 -- Since: yesod-form 1.3.8
 bfs :: RenderMessage site msg => msg -> FieldSettings site
 bfs msg =
-    FieldSettings (SomeMessage msg) Nothing Nothing Nothing [("class", "form-control")]
+    FieldSettings (Just $ SomeMessage msg) Nothing Nothing Nothing [("class", "form-control")]
 
 
 -- | Add a placeholder attribute to a field.  If you need i18n
@@ -153,23 +153,23 @@ renderBootstrap3 formLayout aform fragment = do
               <div .form-group :fvRequired view:.required :not $ fvRequired view:.optional :has $ fvErrors view:.has-error>
                 $case formLayout
                   $of BootstrapBasicForm
-                    $if fvId view /= bootstrapSubmitId
-                      <label for=#{fvId view}>#{fvLabel view}
+                    $maybe label <- fvLabel view
+                      <label for=#{fvId view}>#{label}
                     ^{fvInput view}
                     ^{helpWidget view}
                   $of BootstrapInlineForm
-                    $if fvId view /= bootstrapSubmitId
-                      <label .sr-only for=#{fvId view}>#{fvLabel view}
+                    $maybe label <- fvLabel view
+                      <label .sr-only for=#{fvId view}>#{label}
                     ^{fvInput view}
                     ^{helpWidget view}
                   $of BootstrapHorizontalForm labelOffset labelSize inputOffset inputSize
-                    $if fvId view /= bootstrapSubmitId
-                      <label .control-label .#{toOffset labelOffset} .#{toColumn labelSize} for=#{fvId view}>#{fvLabel view}
-                      <div .#{toOffset inputOffset} .#{toColumn inputSize}>
+                    $maybe label <- fvLabel view
+                      <label .control-label.#{toOffset labelOffset}.#{toColumn labelSize} for=#{fvId view}>#{label}
+                      <div .#{toOffset inputOffset}.#{toColumn inputSize}>
                         ^{fvInput view}
                         ^{helpWidget view}
-                    $else
-                      <div .#{toOffset (addGO inputOffset (addGO labelOffset labelSize))} .#{toColumn inputSize}>
+                    $nothing
+                      <div .#{toOffset (addGO inputOffset (addGO labelOffset labelSize))}.#{toColumn inputSize}>
                         ^{fvInput view}
                         ^{helpWidget view}
                 |]
@@ -239,21 +239,13 @@ mbootstrapSubmit
 mbootstrapSubmit (BootstrapSubmit msg classes attrs) =
     let res = FormSuccess ()
         widget = [whamlet|<button class="btn #{classes}" type=submit *{attrs}>_{msg}|]
-        fv  = FieldView { fvLabel    = ""
+        fv  = FieldView { fvLabel    = Nothing
                         , fvTooltip  = Nothing
-                        , fvId       = bootstrapSubmitId
+                        , fvId       = ""
                         , fvInput    = widget
                         , fvErrors   = Nothing
                         , fvRequired = False }
     in return (res, fv)
-
-
--- | A royal hack.  Magic id used to identify whether a field
--- should have no label.  A valid HTML4 id which is probably not
--- going to clash with any other id should someone use
--- 'bootstrapSubmit' outside 'renderBootstrap3'.
-bootstrapSubmitId :: Text
-bootstrapSubmitId = "b:ootstrap___unique__:::::::::::::::::submit-id"
 
 -- $example
 -- @\<input\>@ tags in Bootstrap 3 require the @form-control@ class,

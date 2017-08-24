@@ -77,7 +77,7 @@ inputList label fixXml single mdef = formToAForm $ do
     (res, xmls, views) <- liftM fixme $ mapM (withDelete . single) vals
     up 1
     return (res, [FieldView
-        { fvLabel = label
+        { fvLabel = Just label
         , fvTooltip = Nothing
         , fvId = theId
         , fvInput = [whamlet|
@@ -108,7 +108,7 @@ $newline never
 |]
         _ -> do
             (_, xml2) <- aFormToForm $ areq checkBoxField FieldSettings
-                { fsLabel = SomeMessage MsgDelete
+                { fsLabel = Just $ SomeMessage MsgDelete
                 , fsTooltip = Nothing
                 , fsName = Just deleteName
                 , fsId = Nothing
@@ -136,7 +136,8 @@ $forall views <- viewss
     <fieldset>
         $forall view <- views
             <div :fvRequired view:.required :not $ fvRequired view:.optional>
-                <label for=#{fvId view}>#{fvLabel view}
+                $maybe label <- fvLabel view
+                    <label for=#{fvId view}>#{label}
                 $maybe tt <- fvTooltip view
                     <div .tooltip>#{tt}
                 ^{fvInput view}
@@ -152,7 +153,8 @@ $forall views <- viewss
             $forall view <- views
                 <tr :fvRequired view:.required :not $ fvRequired view:.optional>
                     <td>
-                        <label for=#{fvId view}>#{fvLabel view}
+                        $maybe label <- fvLabel view
+                            <label for=#{fvId view}>#{label}
                         $maybe tt <- fvTooltip view
                             <div .tooltip>#{tt}
                     <td>^{fvInput view}
