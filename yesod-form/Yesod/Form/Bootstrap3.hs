@@ -18,6 +18,7 @@ module Yesod.Form.Bootstrap3
     -- * Field settings
     -- $fieldSettings
   , bfs
+  , bfs'
   , withPlaceholder
   , withAutofocus
   , withLargeInput
@@ -41,8 +42,14 @@ import Yesod.Form.Functions
 --
 -- Since: yesod-form 1.3.8
 bfs :: RenderMessage site msg => msg -> FieldSettings site
-bfs msg =
-    FieldSettings (Just $ SomeMessage msg) Nothing Nothing Nothing [("class", "form-control")]
+bfs msg = bfs'{ fsLabel = Just (SomeMessage msg) }
+
+-- | Create a new 'FieldSettings' with the @form-control@ class that is
+-- required by Bootstrap v3 omitting a label.
+--
+-- Since: yesod-form 1.4.16
+bfs' :: FieldSettings site
+bfs' = FieldSettings Nothing Nothing Nothing Nothing [("class", "form-control")]
 
 
 -- | Add a placeholder attribute to a field.  If you need i18n
