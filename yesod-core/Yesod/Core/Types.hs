@@ -14,6 +14,7 @@ import qualified Data.ByteString.Builder            as BB
 import           Control.Arrow                      (first)
 import           Control.Exception                  (Exception)
 import           Control.Monad                      (ap)
+import           Control.Monad.Fix                  (MonadFix (..))
 import           Control.Monad.IO.Class             (MonadIO (liftIO))
 import           Control.Monad.Logger               (LogLevel, LogSource,
                                                      MonadLogger (..))
@@ -460,6 +461,11 @@ instance PrimMonad (HandlerFor site) where
 instance MonadReader (HandlerData site site) (HandlerFor site) where
     ask = HandlerFor return
     local f (HandlerFor g) = HandlerFor $ g . f
+
+instance MonadFix (HandlerFor site) where
+  mfix f = HandlerFor $ \r -> mfix $ \a -> unHandlerFor (f a) r
+
+  -- mfix f = HandlerT $ \reader' -> mfix $ \a -> unHandlerT (f a) reader'
 
 -- | @since 1.4.38
 instance MonadUnliftIO (HandlerFor site) where
