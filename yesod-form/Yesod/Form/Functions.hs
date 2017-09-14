@@ -62,7 +62,7 @@ import Control.Arrow (second)
 import Control.Monad.Trans.Class
 import Control.Monad.Trans.RWS (ask, get, put, runRWST, tell, evalRWST, local, mapRWST)
 import Control.Monad.Trans.Writer (runWriterT, writer)
-import Control.Monad (liftM, join)
+import Control.Monad (liftM)
 import Data.Byteable (constEqBytes)
 import Text.Blaze (Markup, toMarkup)
 #define Html Markup
@@ -134,7 +134,7 @@ wreq f fs = mFormToWForm . mreq f fs
 wopt :: (MonadHandler m, HandlerSite m ~ site)
      => Field m a           -- ^ form field
      -> FieldSettings site  -- ^ settings for this field
-     -> Maybe (Maybe a)     -- ^ optional default value
+     -> Maybe a             -- ^ optional default value
      -> WForm m (FormResult (Maybe a))
 wopt f fs = mFormToWForm . mopt f fs
 
@@ -181,9 +181,9 @@ mreq field fs mdef = mhelper field fs mdef (\m l -> FormFailure [renderMessage m
 mopt :: (site ~ HandlerSite m, MonadHandler m)
      => Field m a
      -> FieldSettings site
-     -> Maybe (Maybe a)
+     -> Maybe a
      -> MForm m (FormResult (Maybe a), FieldView site)
-mopt field fs mdef = mhelper field fs (join mdef) (const $ const $ FormSuccess Nothing) (FormSuccess . Just) False
+mopt field fs mdef = mhelper field fs mdef (const $ const $ FormSuccess Nothing) (FormSuccess . Just) False
 
 mhelper :: (site ~ HandlerSite m, MonadHandler m)
         => Field m a
@@ -239,7 +239,7 @@ areq a b = formToAForm . liftM (second return) . mreq a b
 aopt :: MonadHandler m
      => Field m a
      -> FieldSettings (HandlerSite m)
-     -> Maybe (Maybe a)
+     -> Maybe a
      -> AForm m (Maybe a)
 aopt a b = formToAForm . liftM (second return) . mopt a b
 
