@@ -404,7 +404,9 @@ setCreds doRedirects creds =
       then void $ setCredsRedirect creds
       else do auth <- authenticate creds
               case auth of
-                  Authenticated aid -> setSession credsKey $ toPathPiece aid
+                  Authenticated aid -> do
+                    setSession credsKey $ toPathPiece aid
+                    onLogin
                   _ -> return ()
 
 -- | same as defaultLayoutJson, but uses authLayout
