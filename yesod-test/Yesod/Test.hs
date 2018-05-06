@@ -145,6 +145,7 @@ import qualified Network.Socket.Internal as Sock
 import Data.CaseInsensitive (CI)
 import Network.Wai
 import Network.Wai.Test hiding (assertHeader, assertNoHeader, request)
+import Control.Monad.Fail as Fail
 import Control.Monad.Trans.Reader (ReaderT (..))
 import Conduit (MonadThrow)
 import Control.Monad.IO.Class
@@ -1193,8 +1194,16 @@ instance YesodDispatch site => Hspec.Example (SIO (YesodExampleData site) a) whe
 -- | State + IO
 --
 -- @since 1.6.0
-newtype SIO s a = SIO (ReaderT (IORef s) IO a)
-  deriving (Functor, Applicative, Monad, MonadIO, MonadThrow, MonadUnliftIO)
+newtype SIO s a = SIO { unSIO :: ReaderT (IORef s) IO a }
+  deriving (Functor, Applicative, MonadIO, MonadThrow, MonadUnliftIO)
+
+instance Monad (SIO s) where
+  SIO r >>= f = SIO $ r >>= unSIO . f
+  fail = Fail.fail
+
+-- | Raises a HUnit assertion failure.
+instance MonadFail (SIO s) where
+  fail = liftIO . HUnit.assertFailure
 
 getSIO :: SIO s s
 getSIO = SIO $ ReaderT readIORef
