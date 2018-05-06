@@ -72,6 +72,7 @@ module Yesod.Test
     , addFile
     , setRequestBody
     , RequestBuilder
+    , RequestBuilderData()
     , SIO
     , setUrl
     , clickOn
@@ -123,6 +124,7 @@ module Yesod.Test
     , htmlCount
 
     -- * Grab information
+    , YesodSiteProvider(..)
     , getTestYesod
     , getResponse
     , getRequestCookies
@@ -187,6 +189,10 @@ type HasCallStack = (() :: Constraint)
 {-# DEPRECATED byLabel "This function seems to have multiple bugs (ref: https://github.com/yesodweb/yesod/pull/1459). Use byLabelExact, byLabelContain, byLabelPrefix or byLabelSuffix instead" #-}
 {-# DEPRECATED fileByLabel "This function seems to have multiple bugs (ref: https://github.com/yesodweb/yesod/pull/1459). Use fileByLabelExact, fileByLabelContain, fileByLabelPrefix or fileByLabelSuffix instead" #-}
 
+class YesodSiteProvider a where
+  type ProvidedSite a
+  getSite :: a -> ProvidedSite a
+
 -- | The state used in a single test case defined using 'yit'
 --
 -- Since 1.2.4
@@ -196,6 +202,10 @@ data YesodExampleData site = YesodExampleData
     , yedCookies :: !Cookies
     , yedResponse :: !(Maybe SResponse)
     }
+
+instance YesodSiteProvider (YesodExampleData site) where
+  type ProvidedSite (YesodExampleData site) = site
+  getSite = yedSite
 
 -- | A single test case, to be run with 'yit'.
 --
@@ -222,8 +232,8 @@ data YesodSpecTree site
 -- | Get the foundation value used for the current test.
 --
 -- Since 1.2.0
-getTestYesod :: YesodExample site site
-getTestYesod = fmap yedSite getSIO
+getTestYesod :: YesodSiteProvider a => SIO a (ProvidedSite a)
+getTestYesod = fmap getSite getSIO
 
 -- | Get the most recently provided response value, if available.
 --
@@ -240,6 +250,10 @@ data RequestBuilderData site = RequestBuilderData
     , rbdGets :: H.Query
     , rbdHeaders :: H.RequestHeaders
     }
+
+instance YesodSiteProvider (RequestBuilderData site) where
+  type ProvidedSite (RequestBuilderData site) = site
+  getSite = rbdSite
 
 data RBDPostData = MultipleItemsPostData [RequestPart]
                  | BinaryPostData BSL8.ByteString
