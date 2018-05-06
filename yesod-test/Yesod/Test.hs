@@ -31,19 +31,10 @@ backend pre-conditions, or to assert that your session is having the desired eff
 
 module Yesod.Test
     ( -- * Declaring and running your test suite
-      yesodSpec
-    , YesodSpec
-    , yesodSpecWithSiteGenerator
-    , yesodSpecWithSiteGeneratorAndArgument
-    , yesodSpecApp
-    , YesodExample
+      YesodExample
     , YesodExampleData(..)
     , TestApp
-    , YSpec
     , testApp
-    , YesodSpecTree (..)
-    , ydescribe
-    , yit
 
     -- * Modify test state
     , testSetCookie
@@ -166,7 +157,6 @@ import Data.Text.Lazy.Encoding (encodeUtf8, decodeUtf8, decodeUtf8With)
 import Text.XML.Cursor hiding (element)
 import qualified Text.XML.Cursor as C
 import qualified Text.HTML.DOM as HD
-import Control.Monad.Trans.Writer
 import Data.IORef
 import qualified Data.Map as M
 import qualified Web.Cookie as Cookie
@@ -217,18 +207,6 @@ type YesodExample site = SIO (YesodExampleData site)
 -- Since 1.2.0
 type Cookies = M.Map ByteString Cookie.SetCookie
 
--- | Corresponds to hspec\'s 'Spec'.
---
--- Since 1.2.0
-type YesodSpec site = Writer [YesodSpecTree site] ()
-
--- | Internal data structure, corresponding to hspec\'s "SpecTree".
---
--- Since 1.2.0
-data YesodSpecTree site
-    = YesodSpecGroup String [YesodSpecTree site]
-    | YesodSpecItem String (YesodExample site ())
-
 -- | Get the foundation value used for the current test.
 --
 -- Since 1.2.0
@@ -267,124 +245,6 @@ data RequestPart
 -- to send with your requests. Some of the functions that run on it use the current
 -- response to analyze the forms that the server is expecting to receive.
 type RequestBuilder site = SIO (RequestBuilderData site)
-
--- | Start describing a Tests suite keeping cookies and a reference to the tested 'Application'
--- and 'ConnectionPool'
-ydescribe :: String -> YesodSpec site -> YesodSpec site
-ydescribe label yspecs = tell [YesodSpecGroup label $ execWriter yspecs]
-
-yesodSpec :: YesodDispatch site
-          => site
-          -> YesodSpec site
-          -> Hspec.Spec
-yesodSpec site yspecs =
-    Hspec.fromSpecList $ map unYesod $ execWriter yspecs
-  where
-    unYesod (YesodSpecGroup x y) = Hspec.specGroup x $ map unYesod y
-    unYesod (YesodSpecItem x y) = Hspec.specItem x $ do
-        app <- toWaiAppPlain site
-        evalSIO y YesodExampleData
-            { yedApp = app
-            , yedSite = site
-            , yedCookies = M.empty
-            , yedResponse = Nothing
-            }
-
--- | Same as yesodSpec, but instead of taking already built site it
--- takes an action which produces site for each test.
-yesodSpecWithSiteGenerator :: YesodDispatch site
-                           => IO site
-                           -> YesodSpec site
-                           -> Hspec.Spec
-yesodSpecWithSiteGenerator getSiteAction =
-    yesodSpecWithSiteGeneratorAndArgument (const getSiteAction)
-
--- | Same as yesodSpecWithSiteGenerator, but also takes an argument to build the site
--- and makes that argument available to the tests.
---
--- @since 1.6.4
-yesodSpecWithSiteGeneratorAndArgument :: YesodDispatch site
-                           => (a -> IO site)
-                           -> YesodSpec site
-                           -> Hspec.SpecWith a
-yesodSpecWithSiteGeneratorAndArgument getSiteAction yspecs =
-    Hspec.fromSpecList $ map (unYesod getSiteAction) $ execWriter yspecs
-    where
-      unYesod getSiteAction' (YesodSpecGroup x y) = Hspec.specGroup x $ map (unYesod getSiteAction') y
-      unYesod getSiteAction' (YesodSpecItem x y) = Hspec.specItem x $ \a -> do
-        site <- getSiteAction' a
-        app <- toWaiAppPlain site
-        evalSIO y YesodExampleData
-            { yedApp = app
-            , yedSite = site
-            , yedCookies = M.empty
-            , yedResponse = Nothing
-            }
-
--- | Same as yesodSpec, but instead of taking a site it
--- takes an action which produces the 'Application' for each test.
--- This lets you use your middleware from makeApplication
-yesodSpecApp :: YesodDispatch site
-             => site
-             -> IO Application
-             -> YesodSpec site
-             -> Hspec.Spec
-yesodSpecApp site getApp yspecs =
-    Hspec.fromSpecList $ map unYesod $ execWriter yspecs
-  where
-    unYesod (YesodSpecGroup x y) = Hspec.specGroup x $ map unYesod y
-    unYesod (YesodSpecItem x y) = Hspec.specItem x $ do
-        app <- getApp
-        evalSIO y YesodExampleData
-            { yedApp = app
-            , yedSite = site
-            , yedCookies = M.empty
-            , yedResponse = Nothing
-            }
-
--- | Describe a single test that keeps cookies, and a reference to the last response.
-yit :: String -> YesodExample site () -> YesodSpec site
-yit label example = tell [YesodSpecItem label example]
-
--- | Sets a cookie
---
--- ==== __Examples__
---
--- > import qualified Data.Cookie as Cookie
--- > :set -XOverloadedStrings
--- > testSetCookie Cookie.defaultSetCookie { Cookie.setCookieName = "name" }
---
--- @since 1.6.6
-testSetCookie :: Cookie.SetCookie -> YesodExample site ()
-testSetCookie cookie = do
-  let key = Cookie.setCookieName cookie
-  modifySIO $ \yed -> yed { yedCookies = M.insert key cookie (yedCookies yed) }
-
--- | Deletes the cookie of the given name
---
--- ==== __Examples__
---
--- > :set -XOverloadedStrings
--- > testDeleteCookie "name"
---
--- @since 1.6.6
-testDeleteCookie :: ByteString -> YesodExample site ()
-testDeleteCookie k = do
-  modifySIO $ \yed -> yed { yedCookies = M.delete k (yedCookies yed) }
-
--- | Modify the current cookies with the given mapping function
---
--- @since 1.6.6
-testModifyCookies :: (Cookies -> Cookies) -> YesodExample site ()
-testModifyCookies f = do
-  modifySIO $ \yed -> yed { yedCookies = f (yedCookies yed) }
-
--- | Clears the current cookies
---
--- @since 1.6.6
-testClearCookies :: YesodExample site ()
-testClearCookies = do
-  modifySIO $ \yed -> yed { yedCookies = M.empty }
 
 -- Performs a given action using the last response. Use this to create
 -- response-level assertions
@@ -1312,7 +1172,6 @@ failure reason = (liftIO $ HUnit.assertFailure $ T.unpack reason) >> error ""
 type TestApp site = (site, Middleware)
 testApp :: site -> Middleware -> TestApp site
 testApp site middleware = (site, middleware)
-type YSpec site = Hspec.SpecWith (TestApp site)
 
 instance YesodDispatch site => Hspec.Example (SIO (YesodExampleData site) a) where
     type Arg (SIO (YesodExampleData site) a) = TestApp site
