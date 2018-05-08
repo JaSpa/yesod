@@ -153,6 +153,7 @@ import System.IO
 import Yesod.Core.Unsafe (runFakeHandler)
 import Yesod.Test.TransversingCSS
 import Yesod.Core
+import Data.Maybe
 import qualified Data.Text.Lazy as TL
 import Data.Text.Lazy.Encoding (encodeUtf8, decodeUtf8, decodeUtf8With)
 import Text.XML.Cursor hiding (element)
@@ -1134,15 +1135,14 @@ request reqBuilder = do
         simpleRequest' = (mkRequest
                           ([ ("Cookie", cookieValue) ] ++ headersForPostData rbdPostData)
                           method extraHeaders urlPath urlQuery)
-        simpleRequestBody' (MultipleItemsPostData x) =
-          BSL8.fromChunks $ return $ TE.encodeUtf8 $ T.intercalate "&"
-          $ map singlepartPart x
+        simpleRequestBody' (MultipleItemsPostData x) = BSL8.fromStrict $
+          H.renderSimpleQuery False (mapMaybe singlepartPart x)
         simpleRequestBody' (BinaryPostData x) = x
         cookieValue = Builder.toByteString $ Cookie.renderCookies cookiePairs
         cookiePairs = [ (Cookie.setCookieName c, Cookie.setCookieValue c)
                       | c <- map snd $ M.toList cookies ]
-        singlepartPart (ReqFilePart _ _ _ _) = ""
-        singlepartPart (ReqKvPart k v) = T.concat [k,"=",v]
+        singlepartPart (ReqFilePart _ _ _ _) = Nothing
+        singlepartPart (ReqKvPart k v) = Just (TE.encodeUtf8 k, TE.encodeUtf8 v)
 
         -- If the request appears to be submitting a form (has key-value pairs) give it the form-urlencoded Content-Type.
         -- The previous behavior was to always use the form-urlencoded Content-Type https://github.com/yesodweb/yesod/issues/1063
