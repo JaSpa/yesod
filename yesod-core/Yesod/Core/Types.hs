@@ -432,6 +432,9 @@ instance MonadReader (WidgetData site) (WidgetFor site) where
     ask = WidgetFor return
     local f (WidgetFor g) = WidgetFor $ g . f
 
+instance MonadFix (WidgetFor site) where
+  mfix f = WidgetFor $ \r -> mfix $ \a -> unWidgetFor (f a) r
+
 instance MonadThrow (WidgetFor site) where
     throwM = liftIO . throwM
 
@@ -545,6 +548,9 @@ instance MonadUnliftIO (SubHandlerFor child master) where
   {-# INLINE askUnliftIO #-}
   askUnliftIO = SubHandlerFor $ \r ->
                 return (UnliftIO (flip unSubHandlerFor r))
+
+instance MonadFix (SubHandlerFor child master) where
+  mfix f = SubHandlerFor $ \r -> mfix $ \a -> unSubHandlerFor (f a) r
 
 instance MonadThrow (SubHandlerFor child master) where
     throwM = liftIO . throwM
