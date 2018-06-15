@@ -61,6 +61,7 @@ module Yesod.Test
     , addPostParam
     , addGetParam
     , addFile
+    , addFileMemory
     , setRequestBody
     , RequestBuilder
     , RequestBuilderData()
@@ -472,10 +473,26 @@ addFile :: T.Text -- ^ The parameter name for the file.
         -> RequestBuilder site ()
 addFile name path mimetype = do
   contents <- liftIO $ BSL8.readFile path
-  modifySIO $ \rbd -> rbd { rbdPostData = (addPostData (rbdPostData rbd) contents) }
+  addFileMemory name path contents mimetype
+
+-- | Add a file to be posted with the current request.
+--
+-- Adding a file will automatically change your request content-type to be multipart/form-data.
+--
+-- ==== __Examples__
+--
+-- > request $ do
+-- >   addFile "greeting" "Hello, world!" "text/plain"
+addFileMemory :: T.Text -- ^ The parameter name for the file
+              -> FilePath -- ^ Dummy path sent with the request
+              -> BSL8.ByteString -- ^ The file contents
+              -> T.Text -- ^ The MIME type of the file, e.g. "text/plain"
+              -> RequestBuilder site ()
+addFileMemory name path contents mimetype =
+  modifySIO $ \rbd -> rbd{ rbdPostData = (addPostData (rbdPostData rbd) contents) }
     where addPostData (BinaryPostData _) _ = error "Trying to add file after setting binary content."
-          addPostData (MultipleItemsPostData posts) contents =
-            MultipleItemsPostData $ ReqFilePart name path contents mimetype : posts
+          addPostData (MultipleItemsPostData posts) c =
+            MultipleItemsPostData $ ReqFilePart name path c mimetype : posts
 
 -- |
 -- This looks up the name of a field based on the contents of the label pointing to it.
