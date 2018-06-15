@@ -86,6 +86,10 @@ module Yesod.Test
     , fileByLabelPrefix
     , fileByLabelSuffix
 
+    , InputType(..)
+    , Matcher
+    , fromForm
+
     -- *** CSRF Tokens
     -- | In order to prevent CSRF exploits, yesod-form adds a hidden input
     -- to your forms with the name "_token". This token is a randomly generated,
@@ -134,6 +138,7 @@ module Yesod.Test
 
 import qualified Test.Hspec.Core.Spec as Hspec
 import qualified Data.List as DL
+import Data.String (IsString(..))
 import qualified Data.ByteString.Char8 as BS8
 import Data.ByteString (ByteString)
 import qualified Data.Text as T
@@ -494,54 +499,12 @@ addFileMemory name path contents mimetype =
           addPostData (MultipleItemsPostData posts) c =
             MultipleItemsPostData $ ReqFilePart name path c mimetype : posts
 
--- |
--- This looks up the name of a field based on the contents of the label pointing to it.
-genericNameFromLabel :: (T.Text -> T.Text -> Bool) -> T.Text -> RequestBuilder site T.Text
-genericNameFromLabel match label = do
-  mres <- fmap rbdResponse getSIO
-  res <-
-    case mres of
-      Nothing -> failure "genericNameFromLabel: No response available"
-      Just res -> return res
-  let
-    body = simpleBody res
-    mlabel = parseHTML body
-                $// C.element "label"
-                >=> isContentMatch label
-    mfor = mlabel >>= attribute "for"
-
-    isContentMatch x c
-        | x `match` T.concat (c $// content) = [c]
-        | otherwise = []
-
-  case mfor of
-    for:[] -> do
-      let mname = parseHTML body
-                    $// attributeIs "id" for
-                    >=> attribute "name"
-      case mname of
-        "":_ -> failure $ T.concat
-            [ "Label "
-            , label
-            , " resolved to id "
-            , for
-            , " which was not found. "
-            ]
-        name:_ -> return name
-        [] -> failure $ "No input with id " <> for
-    [] ->
-      case filter (/= "") $ mlabel >>= (child >=> C.element "input" >=> attribute "name") of
-        [] -> failure $ "No label contained: " <> label
-        name:_ -> return name
-    _ -> failure $ "More than one label contained " <> label
-
 byLabelWithMatch :: (T.Text -> T.Text -> Bool) -- ^ The matching method which is used to find labels (i.e. exact, contains)
                  -> T.Text                     -- ^ The text contained in the @\<label>@.
                  -> T.Text                     -- ^ The value to set the parameter to.
                  -> RequestBuilder site ()
-byLabelWithMatch match label value = do
-  name <- genericNameFromLabel match label
-  addPostParam name value
+byLabelWithMatch match label value =
+  fromForm match label (InputRegular value)
 
 -- How does this work for the alternate <label><input></label> syntax?
 
@@ -661,9 +624,82 @@ fileByLabelWithMatch  :: (T.Text -> T.Text -> Bool) -- ^ The matching method whi
                       -> FilePath                   -- ^ The path to the file.
                       -> T.Text                     -- ^ The MIME type of the file, e.g. "image/png".
                       -> RequestBuilder site ()
-fileByLabelWithMatch match label path mime = do
-  name <- genericNameFromLabel match label
-  addFile name path mime
+fileByLabelWithMatch match label path mime =
+  fromForm match label (InputFile path mime)
+
+type Matcher = T.Text -> T.Text -> Bool
+
+data InputType = InputRegular T.Text
+               | InputValue
+               | InputSelect Matcher T.Text
+               | InputFile FilePath T.Text
+               | InputFileMemory FilePath BSL8.ByteString T.Text
+
+instance IsString InputType where
+  fromString = InputRegular . fromString
+
+addFromInput :: T.Text -> InputType -> Cursor -> RequestBuilder site ()
+addFromInput name typ input = do
+  let
+    value = fromMaybe ""
+          $ listToMaybe
+          $ input $| attribute "value"
+
+  case typ of
+    InputRegular val -> addPostParam name val
+    InputValue       -> addPostParam name value
+
+    InputFile fp mime -> addFile name fp mime
+    InputFileMemory fp cts mime -> addFileMemory name fp cts mime
+
+    InputSelect matcher text -> do
+      let
+        options = input $// C.element "option" >=> optMatch
+
+        optMatch opt =
+          map (const opt) $ case opt $| attribute "label" of
+            [] -> match (opt $// content)
+            att -> match att
+            where match = pointIf (matcher text . T.concat)
+
+        optValue opt =
+          T.concat $ case opt $| attribute "value" of
+                       [] -> opt $// content
+                       val -> val
+
+      case options of
+        [opt] -> addPostParam name (optValue opt)
+        [] -> failure $ "No option matched " <> text
+        _ -> failure $ "Multiple options matched " <> text
+
+fromForm :: Matcher -> T.Text -> InputType -> RequestBuilder site ()
+fromForm matcher label typ = do
+  mres <- fmap rbdResponse getSIO
+  res <- maybe (failure "fromForm: No response available") return mres
+
+  let body = parseHTML (simpleBody res)
+      labelElems = body $// C.element "label" >=> labelMatch
+      labelMatch = pointIf $
+        \c -> matcher label $ T.concat (c $// content)
+
+      go [input] = case input $| attribute "name" of
+                     name:_ -> addFromInput name typ input
+                     _ -> failure $ "No name for input " <> label
+      go [] = failure $ "No input with label " <> label
+      go _ = failure $ "Multiple inputs for label " <> label
+
+  case labelElems of
+    [labelElem] ->
+      case labelElem $| attribute "for" of
+        inputId:_ -> go (body $// attributeIs "id" inputId)
+        [] -> go $ concatMap ((labelElem $//) . C.element)
+                ["input", "textarea", "button", "select"]
+
+    [] -> failure $ "No label matched " <> label
+    _ -> failure $ "Multiple labels matched " <> label
+
+pointIf :: (b -> Bool) -> b -> [b]
+pointIf f b = if f b then [b] else []
 
 -- | Finds the @\<label>@ with the given value, finds its corresponding @\<input>@, then adds a file for that input to the request body.
 --
