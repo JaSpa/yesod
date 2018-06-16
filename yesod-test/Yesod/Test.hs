@@ -641,9 +641,19 @@ instance IsString InputType where
 addFromInput :: T.Text -> InputType -> Cursor -> RequestBuilder site ()
 addFromInput name typ input = do
   let
-    value = fromMaybe ""
-          $ listToMaybe
-          $ input $| attribute "value"
+    optionValue c =
+      T.concat $ case c $| attribute "value" of
+                   [] -> c $// content
+                   val -> val
+
+    inputValue c = fromMaybe ""
+                 $ listToMaybe
+                 $ c $| attribute "value"
+
+    value =
+      case input $// C.element "option" >=> hasAttribute "selected" &| optionValue of
+        [] -> inputValue input
+        val:_ -> val
 
   case typ of
     InputRegular val -> addPostParam name val
@@ -662,13 +672,8 @@ addFromInput name typ input = do
             att -> match att
             where match = pointIf (matcher text . T.concat)
 
-        optValue opt =
-          T.concat $ case opt $| attribute "value" of
-                       [] -> opt $// content
-                       val -> val
-
       case options of
-        [opt] -> addPostParam name (optValue opt)
+        [opt] -> addPostParam name (optionValue opt)
         [] -> failure $ "No option matched " <> text
         _ -> failure $ "Multiple options matched " <> text
 
